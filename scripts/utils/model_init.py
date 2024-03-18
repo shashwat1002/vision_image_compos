@@ -3,6 +3,7 @@ from torch.nn import Module
 from torch import nn
 from transformers import CLIPProcessor, CLIPModel, CLIPTokenizer, CLIPConfig
 from transformers import AutoModel, AutoTokenizer, AutoModel, AutoConfig
+import torch
 
 
 def probe_block(input_dim: int, output_dim: int, non_linearity: str) -> Module:
@@ -59,7 +60,7 @@ def init_subject_model(
     elif model_type == "clip":
         if model_config is None:
             model_config = CLIPConfig.from_pretrained(model_name)
-        tokenizer = CLIPTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = CLIPModel.from_pretrained(model_name, config=model_config)
         model.to(device=device)
         model.eval()

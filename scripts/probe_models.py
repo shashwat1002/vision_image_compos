@@ -1,9 +1,10 @@
-from utils.model_init import probe_model
+from .utils.model_init import probe_model
 from torch.nn import Module
 import torch
+from torchmetrics.functional import precision, recall
 
 
-from lightning import LightningModel
+from lightning import LightningModule
 
 IGNORE_INDEX_IN_LOSS = -1
 
@@ -22,13 +23,13 @@ class ProbeModelWordLabel(Module):
 
     def forward(self, x):
         """
-        x (b, s, d) -> b: batch_size, s: squence_length, d: dimensions from the model
+        x (b, d) -> b: batch_size, d: dimensions from the model
         d -> input_dim on the probe
         """
         return self.model(x)
 
 
-class ProbeModelWordLabelLightning(LightningModel):
+class ProbeModelWordLabelLightning(LightningModule):
 
     def __init__(
         self,
@@ -42,6 +43,8 @@ class ProbeModelWordLabelLightning(LightningModel):
         self.model = ProbeModelWordLabel(
             input_dim, output_dim, hidden_dims, non_linearity
         )
+        self.output_dim = output_dim
+
         self.loss = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX_IN_LOSS)
         self.lr = lr
 
@@ -61,21 +64,85 @@ class ProbeModelWordLabelLightning(LightningModel):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.model(x)
-        loss = self.loss(y_hat, y)
-        self.log("val_loss", loss)
-        return {"val_loss": loss}
 
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        return {"val_loss": avg_loss}
+        # get top pred
+        loss = self.loss(y_hat, y)
+        y_hat = torch.argmax(y_hat, dim=-1)
+        self.log("test_loss", loss)
+
+        # get metrics
+        precision_score = precision(
+            task="multiclass", preds=y_hat, target=y, num_classes=self.output_dim
+        )
+        recall_score = recall(
+            task="multiclass", preds=y_hat, target=y, num_classes=self.output_dim
+        )
+        self.log("precision", precision_score)
+        self.log("recall", recall_score)
+        return {
+            "test_loss": loss,
+            "precision": precision_score,
+            "recall": recall_score,
+        }
+
+    # def validation_epoch_end(self, outputs):
+    #     avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+    #     return {"val_loss": avg_loss}
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.model(x)
-        loss = self.loss(y_hat, y)
-        self.log("test_loss", loss)
-        return {"test_loss": loss}
 
-    def test_epoch_end(self, outputs):
+        # get top pred
+        y_hat = torch.argmax(y_hat, dim=-1)
+        self.log("test_loss", loss)
+        loss = self.loss(y_hat, y)
+
+        # get metrics
+        precision_score = precision(y_hat, y)
+        recall_score = recall(y_hat, y)
+        self.log("precision", precision_score)
+        self.log("recall", recall_score)
+        return {
+            "test_loss": loss,
+            "precision": precision_score,
+            "recall": recall_score,
+        }
+
+    def on_test_epoch_end(self, outputs):
         avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
         return {"test_loss": avg_loss}
+
+
+class ProbeWordPairLabel(Module):
+    """
+    Defines a probe that is based on bilinear transformations
+    """
+
+    def __init__(
+        self, input_dim: int, output_dim: int, hidden_dims: list, non_linearity: str
+    ):
+        super(ProbeWordPairLabel, self).__init__()
+        self.model = probe_model(input_dim, output_dim, hidden_dims, non_linearity)
+
+    def forward(self, x):
+        """
+        x (b, s, d) -> b: batch_size, s: sequence length, d: dimensions from the model
+        d -> input_dim on the probe
+        """
+        transformed = self.model(x)
+
+        # get pairwise dot product
+        b, s, d = x.shape
+        transformed = transformed.view(b, s, 1, d)
+        x = x.view(b, s, d, 1)
+        pairwise = torch.matmul(transformed, x)
+
+        # softmax across the sequence
+        pairwise = pairwise.view(b, s, s)
+        pairwise = pairwise + 1e-6
+        pairwise = torch.nn.functional.softmax(pairwise, dim=-1)
+
+        return pairwise
+
+

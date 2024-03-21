@@ -2,6 +2,7 @@ from typing import *
 from torch.nn import Module
 from torch import nn
 from transformers import CLIPProcessor, CLIPModel, CLIPTokenizer, CLIPConfig
+from transformers import BlipProcessor, BlipModel, BlipConfig
 from transformers import AutoModel, AutoTokenizer, AutoModel, AutoConfig
 import torch
 
@@ -73,7 +74,21 @@ def init_subject_model(
             "model": model,
             "config": model_config,
         }
+    elif model_type == "blip":
+        if model_config is None:
+            model_config = BlipConfig.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = BlipModel.from_pretrained(model_name, config=model_config)
+        model.to(device=device)
+        model.eval()
+        model_text = model.text_model
+        text_config = model_text.config
+        return {
+            "model_text": model_text,
+            "tokenizer": tokenizer,
+            "config_text": text_config,
+            "model": model,
+            "config": model_config,
+        }
     else:
         raise ValueError("Model type not recognized")
-
-

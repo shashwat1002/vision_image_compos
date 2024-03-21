@@ -1,4 +1,4 @@
-from utils.model_init import init_subject_model
+from .utils.model_init import init_subject_model
 import h5py
 import torch
 from conllu import parse_incr

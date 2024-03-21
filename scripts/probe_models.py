@@ -68,21 +68,29 @@ class ProbeModelWordLabelLightning(LightningModule):
         # get top pred
         loss = self.loss(y_hat, y)
         y_hat = torch.argmax(y_hat, dim=-1)
-        self.log("test_loss", loss)
+        self.log("val_loss", loss)
 
         # get metrics
         precision_score = precision(
-            task="multiclass", preds=y_hat, target=y, num_classes=self.output_dim
+            task="multiclass",
+            preds=y_hat,
+            target=y,
+            num_classes=self.output_dim,
+            ignore_index=IGNORE_INDEX_IN_LOSS,
         )
         recall_score = recall(
-            task="multiclass", preds=y_hat, target=y, num_classes=self.output_dim
+            task="multiclass",
+            preds=y_hat,
+            target=y,
+            num_classes=self.output_dim,
+            ignore_index=IGNORE_INDEX_IN_LOSS,
         )
-        self.log("precision", precision_score)
-        self.log("recall", recall_score)
+        self.log("val_precision", precision_score)
+        self.log("val_recall", recall_score)
         return {
-            "test_loss": loss,
-            "precision": precision_score,
-            "recall": recall_score,
+            "val_loss": loss,
+            "val_precision": precision_score,
+            "val_recall": recall_score,
         }
 
     # def validation_epoch_end(self, outputs):
@@ -101,12 +109,12 @@ class ProbeModelWordLabelLightning(LightningModule):
         # get metrics
         precision_score = precision(y_hat, y)
         recall_score = recall(y_hat, y)
-        self.log("precision", precision_score)
-        self.log("recall", recall_score)
+        self.log("test_precision", precision_score)
+        self.log("test_recall", recall_score)
         return {
             "test_loss": loss,
-            "precision": precision_score,
-            "recall": recall_score,
+            "test_precision": precision_score,
+            "test_recall": recall_score,
         }
 
     def on_test_epoch_end(self, outputs):

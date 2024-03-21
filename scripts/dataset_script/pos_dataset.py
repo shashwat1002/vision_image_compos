@@ -33,6 +33,7 @@ POS_TAGS = [
     "PRON",
     "SCONJ",
     "CCONJ",
+    "_",
 ]
 
 POS_TAG_DICT = {pos: i for i, pos in enumerate(POS_TAGS)}
@@ -40,15 +41,15 @@ POS_TAG_DICT = {pos: i for i, pos in enumerate(POS_TAGS)}
 
 class EmbeddingsDatasetPos(Dataset):
     def __init__(
-        self, h5_py_file, conlxx_file, model_name, max_length, layer_number: int = -1
+        self, h5_py_file, conllu_file, model_name, max_length, layer_number: int = -1
     ):
         self.h5_py_file = h5_py_file
-        self.conlxx_file = conlxx_file
+        self.conllu_file = conllu_file
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         # store the parse trees with respect to entries
         self.entries = []  # each element is conllu tokenlist
-        with open(conlxx_file, "r", encoding="utf-8") as f:
+        with open(conllu_file, "r", encoding="utf-8") as f:
             for tokenlist in parse_incr(f):
                 self.entries.append(tokenlist)
 
@@ -94,7 +95,7 @@ class EmbeddingsDatasetPos(Dataset):
             final_processed_embeds.append(aligned_embeddings)
 
             # align embedding to pos tags
-            tokenlist = deal_with_double_punctuation_case(tokenlist)
+            tokenlist = deal_with_double_punctuation_case(tokenlist, task="pos")
             pos_tags = [token["upos"] for token in tokenlist]
 
             if aligned_embeddings.shape[0] != len(pos_tags):

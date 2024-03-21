@@ -131,26 +131,106 @@ class ProbeWordPairLabel(Module):
         self, input_dim: int, output_dim: int, hidden_dims: list, non_linearity: str
     ):
         super(ProbeWordPairLabel, self).__init__()
-        self.model = probe_model(input_dim, output_dim, hidden_dims, non_linearity)
+        self.model_q = probe_model(
+            input_dim, output_dim, hidden_dims, non_linearity
+        )  # d -> d'
+        self.model_k = probe_model(
+            input_dim, output_dim, hidden_dims, non_linearity
+        )  # d -> d' d' < d
 
     def forward(self, x):
         """
         x (b, s, d) -> b: batch_size, s: sequence length, d: dimensions from the model
         d -> input_dim on the probe
         """
-        transformed = self.model(x)
+        transformed_q = self.model_q(x)
+        transformed_k = self.model_k(x)
 
         # get pairwise dot product
-        b, s, d = x.shape
-        transformed = transformed.view(b, s, 1, d)
-        x = x.view(b, s, d, 1)
-        pairwise = torch.matmul(transformed, x)
+        b, s, d = transformed_q.shape
+        transformed_k_transpose = transformed_k.transpose(-1, -2)
+        pairwise = torch.matmul(transformed_q, transformed_k_transpose)  # b, s, s
+        # normalize
+        pairwise = pairwise / torch.sqrt(torch.tensor(d))
 
         # softmax across the sequence
         pairwise = pairwise.view(b, s, s)
-        pairwise = pairwise + 1e-6
-        pairwise = torch.nn.functional.softmax(pairwise, dim=-1)
-
+        # pairwise = torch.nn.functional.softmax(pairwise, dim=-1)
+        print(pairwise.shape)
         return pairwise
 
 
+class ProbeWordPairLabelModelLightning(LightningModule):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_dims: list,
+        non_linearity: str,
+        lr: float = 1e-3,
+    ):
+        super(ProbeWordPairLabelModelLightning, self).__init__()
+        self.model = ProbeWordPairLabel(
+            input_dim, output_dim, hidden_dims, non_linearity
+        )
+        self.output_dim = output_dim
+
+        self.loss = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX_IN_LOSS)
+        self.lr = lr
+        print("hi")
+
+    def forward(self, x):
+        return self.model(x)
+
+    def training_step(self, batch, batch_idx):
+        print("t")
+        x, y = batch
+        y_hat = self.model(x)
+        # print(y_hat)
+        print(y.shape)
+        b, s1, s2 = y_hat.shape
+        loss = self.loss(y_hat.view(-1, s2), y.view(-1))
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.model.parameters(), lr=self.lr)
+
+    def uas(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self.model(x)
+        b, s1, s2 = y_hat.shape
+        loss = self.loss(y_hat.view(-1, s2), y.view(-1))
+        y_hat_pred = torch.argmax(y_hat, dim=-1)
+        # print(y_hat_pred.shape)
+
+        mask = y != IGNORE_INDEX_IN_LOSS
+
+        total = mask.sum(dim=-1)
+
+        correct = ((y_hat_pred == y) * mask).sum(dim=-1)
+        proportion = correct / total
+        proportion_avg = proportion.mean()
+
+
+        return {"loss": loss, "uas": proportion_avg}
+
+    def validation_step(self, batch, batch_idx):
+        losses = self.uas(batch, batch_idx)
+        val_loss = losses["loss"]
+        val_uas = losses["uas"]
+        self.log("val_loss", val_loss)
+        self.log("val_uas", val_uas)
+        return {"val_loss": val_loss, "val_uas": val_uas}
+
+    # def validation_epoch_end(self, outputs):
+    #     avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
+    #     return {"val_loss": avg_loss}
+
+    def test_step(self, batch, batch_idx):
+        losses = self.uas(batch, batch_idx)
+        test_loss = losses["loss"]
+        test_uas = losses["uas"]
+        self.log("test_loss", test_loss)
+        self.log("test_uas", test_uas)
+        return {"test_loss": test_loss, "test_uas": test_uas}

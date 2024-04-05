@@ -13,6 +13,56 @@ from datasets import load_dataset
 from scripts.utils.model_init import init_subject_model
 from tqdm import tqdm
 from scripts.utils.feature_extraction import get_embedding_wino_eval
+from scripts.dataset_script.winoground_dataset import WinogroundEmbeddingDataset
+from scripts.convert_winoground_to_embeddings import (
+    convert_raw_to_embeddings,
+    create_output_filename,
+)
+
+
+def create_cache_files(
+    dataset_name: str,
+    model_name: str,
+    model_type: str,
+    device: str,
+    output_dir: str,
+    pool_strat: str = "pooler",
+    force_create: bool = False,
+):
+
+    text_cache, img_cache = create_output_filename(
+        input_path=dataset_name,
+        output_dir=output_dir,
+        model_name=model_name,
+        pool_strat=pool_strat,
+    )
+
+    # checking files that exist
+    actual_files_to_process = []
+    if not force_create:
+        for i, output_file in enumerate([text_cache, img_cache]):
+            if os.path.exists(output_file):
+                print(f"File {output_file} already exists. Skipping.")
+            else:
+                actual_files_to_process = [text_cache, img_cache]
+    else:
+        actual_files_to_process = [text_cache, img_cache]
+
+    dataset_split = load_dataset(dataset_name)["test"]
+    if len(actual_files_to_process) != 0:
+        convert_raw_to_embeddings(
+            dataset_split,
+            model_name=model_name,
+            model_type=model_type,
+            output_paths=(text_cache, img_cache),
+            device=device,
+        )
+    print("Embeddings created successfully")
+
+    return {
+        "text": text_cache,
+        "img": img_cache,
+    }
 
 
 def text_eval(
@@ -71,6 +121,7 @@ def main(args):
     model = args.model
     metric = args.metric
     device = args.device
+    cache_dir = args.cache_dir
 
     model_dict = init_subject_model(model, "clip", device=device)
 
@@ -83,34 +134,29 @@ def main(args):
         0 for _ in range(model_dict["config_text"].num_hidden_layers + 1)
     ]
 
-    for example in tqdm(dataset):
-        c1 = example["caption_0"]
-        c2 = example["caption_1"]
-        i1 = example["image_0"].convert("RGB")
-        i2 = example["image_1"].convert("RGB")
-
-        c1_embed_list, c2_embed_list, i1_embed, i2_embed = get_embedding_wino_eval(
-            model_dict, c1, c2, i1, i2
+    cache_files = create_cache_files(
+        "facebook/winoground", model, "clip", device, cache_dir
+    )
+    total = 0
+    for layer_num in range(len(text_eval_list)):
+        dataset = WinogroundEmbeddingDataset(
+            cache_files["text"], cache_files["img"], layer_number=layer_num
         )
+        for example in tqdm(dataset):
+            c1 = example[0, :].unsqueeze(0)
+            c2 = example[1, :].unsqueeze(0)
+            i1 = example[2, :].unsqueeze(0)
+            i2 = example[3, :].unsqueeze(0)
 
-        for i in range(model_dict["config_text"].num_hidden_layers + 1):
-            if text_eval(
-                c1_embed_list[i], c2_embed_list[i], i1_embed, i2_embed, metric
-            ):
-                # print("hi")
-                text_eval_list[i] += 1
+            if text_eval(c1, c2, i1, i2, metric):
+                text_eval_list[layer_num] += 1
 
-            if group_eval(
-                c1_embed_list[i], c2_embed_list[i], i1_embed, i2_embed, metric
-            ):
-                group_eval_list[i] += 1
+            if group_eval(c1, c2, i1, i2, metric):
+                group_eval_list[layer_num] += 1
 
-            if image_eval(
-                c1_embed_list[i], c2_embed_list[i], i1_embed, i2_embed, metric
-            ):
-                image_eval_list[i] += 1
-
-        total += 1
+            if image_eval(c1, c2, i1, i2, metric):
+                image_eval_list[layer_num] += 1
+        total = len(dataset)
 
     image_eval_accuracy = [x / total for x in image_eval_list]
     text_eval_accuracy = [x / total for x in text_eval_list]
@@ -130,6 +176,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--cache_dir", type=str, help="Directory to store the cache files"
+    )
     parser.add_argument("--model", type=str, help="Model name to use")
     parser.add_argument(
         "--metric",

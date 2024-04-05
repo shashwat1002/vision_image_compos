@@ -73,6 +73,7 @@ def init_subject_model(
             "config_text": text_config,
             "model": model,
             "config": model_config,
+            "processor": CLIPProcessor.from_pretrained(model_name, device=device),
         }
     elif model_type == "blip":
         if model_config is None:

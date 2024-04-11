@@ -156,7 +156,7 @@ def run_exp(args):
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=4, shuffle=False)
 
-    symmetric = False
+    symmetric = args.symmetric
 
     # run the experiment
     pl_probe = ProbeSimilarityOrderingWinnogroundStyle(
@@ -195,6 +195,7 @@ if __name__ == "__main__":
     parser.add_argument("--hiddens", type=int, nargs="+", default=[])
     parser.add_argument("--layer_number", type=int, default=-1)
 
+    parser.add_argument("--symmetric", action="store_true")
     parser.add_argument("--proj", action="store_true")
     parser.add_argument("--output_dim", type=int, default=None)
 

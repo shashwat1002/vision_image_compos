@@ -6,7 +6,11 @@ from .utils.feature_extraction import get_embedding_wino_eval
 
 
 def create_output_filename(
-    input_path: str, output_dir: str, model_name: str, pool_strat: str = "pooler"
+    input_path: str,
+    output_dir: str,
+    model_name: str,
+    pool_strat: str = "pooler",
+    proj: bool = True,
 ) -> str:
     """
     Create the output filename for the embeddings
@@ -20,7 +24,7 @@ def create_output_filename(
     basename = input_path.split("/")[-1].split(".")[0]
     model_name = model_name.replace("/", "_")
     return (
-        f"{output_dir}/{model_name}_{basename}_{pool_strat}_text.h5",
+        f"{output_dir}/{model_name}_{basename}_{pool_strat}_proj_{proj}_text.h5",
         f"{output_dir}/{model_name}_{basename}_img.h5",
     )
 
@@ -30,6 +34,7 @@ def convert_raw_to_embeddings(
     model_name: str,
     model_type: str,
     output_paths: tuple[str, str],  # image file and text file
+    proj: bool = True,
     device: str = "cpu",
 ):
 
@@ -40,7 +45,8 @@ def convert_raw_to_embeddings(
     text_config = model_init_dict["config_text"]
 
     num_layers = text_config.num_hidden_layers + 1  # +1 for the embeddings
-    feature_count = text_config.hidden_size
+    feature_count_text = text_config.hidden_size
+    feature_count_image = model_init_dict["config_image"].hidden_size
 
     text_embed_path, image_embed_path = output_paths
 
@@ -56,7 +62,7 @@ def convert_raw_to_embeddings(
 
                 # get the embeddings:
                 c1_embed_list, c2_embed_list, i1_embed, i2_embed = (
-                    get_embedding_wino_eval(model_init_dict, c1, c2, i1, i2)
+                    get_embedding_wino_eval(model_init_dict, c1, c2, i1, i2, proj=proj)
                 )
 
                 c1_embed_tensor = torch.stack(
@@ -72,9 +78,11 @@ def convert_raw_to_embeddings(
                 # make an i tensor with the two images
                 i_tensor = torch.stack([i1_embed, i2_embed])
 
-                dset = fout.create_dataset(str(index), (2, num_layers, feature_count))
+                dset = fout.create_dataset(
+                    str(index), (2, num_layers, feature_count_text)
+                )
 
                 dset[:, :, :] = c_tensor.squeeze().cpu().numpy()
 
-                dimg = fimg.create_dataset(str(index), (2, feature_count))
+                dimg = fimg.create_dataset(str(index), (2, i_tensor.shape[-1]))
                 dimg[:, :] = i_tensor.squeeze().cpu().numpy()

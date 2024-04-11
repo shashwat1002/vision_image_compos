@@ -1,7 +1,7 @@
 import torch
 
 
-def get_text_feature_across_layers_clip(model_dict, text, pooling="pooler"):
+def get_text_feature_across_layers_clip(model_dict, text,  pooling="pooler"):
     """
     Get the text features across layers
     Inputs:
@@ -53,7 +53,9 @@ def get_text_feature_across_layers_clip(model_dict, text, pooling="pooler"):
     }
 
 
-def get_embedding_wino_eval(model_dict, c1, c2, i1, i2, pooling: str = "pooler"):
+def get_embedding_wino_eval(
+    model_dict, c1, c2, i1, i2, proj: bool = True, pooling: str = "pooler"
+):
     processor = model_dict["processor"]
     tokenizer = model_dict["tokenizer"]
     model_text = model_dict["model_text"]
@@ -67,6 +69,11 @@ def get_embedding_wino_eval(model_dict, c1, c2, i1, i2, pooling: str = "pooler")
     input_image_2 = processor(images=i2, return_tensors="pt", padding=True).to(
         device=device
     )
+    embedding_key = ""
+    if proj:
+        embedding_key = "text_features_post_proj"
+    else:
+        embedding_key = "text_features_pre_proj"
 
     image_projection = model.visual_projection
 
@@ -80,10 +87,10 @@ def get_embedding_wino_eval(model_dict, c1, c2, i1, i2, pooling: str = "pooler")
 
         text_1_features = get_text_feature_across_layers_clip(
             model_dict=model_dict, text=c1, pooling=pooling
-        )["text_features_post_proj"]
+        )[embedding_key]
 
         text_2_features = get_text_feature_across_layers_clip(
             model_dict=model_dict, text=c2, pooling=pooling
-        )["text_features_post_proj"]
+        )[embedding_key]
 
     return text_1_features, text_2_features, image_1_features, image_2_features

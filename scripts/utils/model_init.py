@@ -67,6 +67,7 @@ def init_subject_model(
         model.eval()
         model_text = model.text_model
         text_config = model_text.config
+        image_config = model.vision_model.config
         return {
             "model_text": model_text,
             "tokenizer": tokenizer,
@@ -74,6 +75,7 @@ def init_subject_model(
             "model": model,
             "config": model_config,
             "processor": CLIPProcessor.from_pretrained(model_name, device=device),
+            "config_image": image_config,
         }
     elif model_type == "blip":
         if model_config is None:

@@ -40,4 +40,4 @@ class WinogroundEmbeddingDataset(Dataset):
         image_rep = torch.tensor(self.image_feature_list[index])
 
         # concatenate them on dim=0 -> c1, c2, i1, i2
-        return torch.cat([text_rep, image_rep], dim=0)
+        return text_rep, image_rep

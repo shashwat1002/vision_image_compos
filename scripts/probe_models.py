@@ -259,7 +259,7 @@ class ProbeSimilarityOrdering(Module):
         print(f"input_dim_c: {input_dim_c}, input_dim_v: {input_dim_v}")
         print(f"output_dim: {output_dim}, hidden_dims: {hidden_dims}")
         print(f"non_linearity: {non_linearity}, symmetric: {symmetric}")
-        
+
         if symmetric:
             self.model_v = probe_model(
                 input_dim_v, output_dim, hidden_dims, non_linearity
@@ -334,7 +334,7 @@ class ProbeSimilarityOrderingWinnogroundStyle(LightningModule):
         self.loss = torch.nn.CrossEntropyLoss()
         self.lr = lr
 
-    def text_input_arrangement(self, batch, batch_idx):
+    def image_input_arrangement(self, batch, batch_idx):
         """
         Assuming batch: (b, 4, d)
         where the first 2 are captions and the last two images
@@ -357,7 +357,7 @@ class ProbeSimilarityOrderingWinnogroundStyle(LightningModule):
         }
         return comb1, comb2
 
-    def image_input_arrangement(self, batch, batch_idx):
+    def text_input_arrangement(self, batch, batch_idx):
         """
         Assuming batch: (b, 4, d)
         where the first 2 are captions and the last two images

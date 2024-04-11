@@ -377,7 +377,7 @@ class ProbeSimilarityOrderingWinnogroundStyle(LightningModule):
         }
         comb2 = {
             "image": image_embeds[:, [1], :],
-            "text": text_embeds[:, [0, 1], :],
+            "text": text_embeds[:, [1, 0], :],
         }
         return comb1, comb2
 

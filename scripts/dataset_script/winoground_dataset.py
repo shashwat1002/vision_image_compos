@@ -16,12 +16,16 @@ class WinogroundEmbeddingDataset(Dataset):
 
         indices_text = list(text_hf.keys())
         indices_text = [int(i) for i in indices_text]
+        # sort the indices
+        indices_text.sort()
 
         for i in indices_text:
             single_layer_text_list.append(text_hf.get(str(i))[:, layer_number, :])
 
         indices_image = list(image_hf.keys())
         indices_image = [int(i) for i in indices_image]
+        # sort the indices
+        indices_image.sort()
 
         for i in indices_image:
             image_feature_list.append(image_hf.get(str(i))[:, :])

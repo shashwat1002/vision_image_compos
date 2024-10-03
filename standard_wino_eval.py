@@ -142,11 +142,12 @@ def main(args):
         dataset = WinogroundEmbeddingDataset(
             cache_files["text"], cache_files["img"], layer_number=layer_num
         )
-        for example in tqdm(dataset):
-            c1 = example[0, :].unsqueeze(0)
-            c2 = example[1, :].unsqueeze(0)
-            i1 = example[2, :].unsqueeze(0)
-            i2 = example[3, :].unsqueeze(0)
+
+        for text_sam, image_sam in tqdm(dataset):
+            c1 = text_sam[0, :].unsqueeze(0)
+            c2 = text_sam[1, :].unsqueeze(0)
+            i1 = image_sam[0, :].unsqueeze(0)
+            i2 = image_sam[1, :].unsqueeze(0)
 
             if text_eval(c1, c2, i1, i2, metric):
                 text_eval_list[layer_num] += 1

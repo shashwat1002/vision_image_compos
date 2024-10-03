@@ -1,7 +1,7 @@
 import torch
 
 
-def get_text_feature_across_layers_clip(model_dict, text,  pooling="pooler"):
+def get_text_feature_across_layers_clip(model_dict, text, pooling="pooler"):
     """
     Get the text features across layers
     Inputs:
@@ -94,3 +94,59 @@ def get_embedding_wino_eval(
         )[embedding_key]
 
     return text_1_features, text_2_features, image_1_features, image_2_features
+
+
+def get_openai_clip_image_embeds(model, preprocess, i, device="cuda"):
+    # function that runs a pass of the openai clip library
+    import clip
+
+    try:
+        model_clip = model.clip
+    except AttributeError:
+        model_clip = model
+    processed = preprocess(i).to(device).unsqueeze(0)
+    image = model_clip.encode_image(processed).unsqueeze(0)
+    return image
+
+
+from einops import repeat
+
+
+def default(val, d):
+    if val is not None:
+        return val
+    return d() if callable(d) else d
+
+
+def sample_prior_embeddings(
+    prior_model,
+    text,
+    num_samples_per_batch=10,
+    device="cuda",
+    timesteps=None,
+    cond_scale=1.0,
+):
+    timesteps = default(timesteps, prior_model.num_timesteps)
+
+    # copied from the sample function in the prior model
+    text = repeat(text, "b ... -> (b r) ...", r=num_samples_per_batch)
+
+    batch_size = text.shape[0]
+    image_embed_dim = prior_model.image_embed_dim
+
+    text_embed, text_encodings, text_mask = prior_model.clip.embed_text(text)
+    # text_embed = text_embed.to(device)
+    # text_encodings = text_encodings.to(device)
+
+    text_cond = dict(text_embed=text_embed)
+
+    # if prior_model.condition_on_text_encodings:
+    #     text_cond = {**text_cond, "text_encodings": text_encodings}
+
+    image_embeds = prior_model.p_sample_loop(
+        (batch_size, image_embed_dim),
+        text_cond=text_cond,
+        cond_scale=cond_scale,
+    )
+
+    return image_embeds

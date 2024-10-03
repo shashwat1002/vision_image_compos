@@ -36,6 +36,7 @@ def convert_raw_to_embeddings(
     output_paths: tuple[str, str],  # image file and text file
     proj: bool = True,
     device: str = "cpu",
+    pooling: str = "pooler",
 ):
 
     model_init_dict = init_subject_model(
@@ -62,7 +63,9 @@ def convert_raw_to_embeddings(
 
                 # get the embeddings:
                 c1_embed_list, c2_embed_list, i1_embed, i2_embed = (
-                    get_embedding_wino_eval(model_init_dict, c1, c2, i1, i2, proj=proj)
+                    get_embedding_wino_eval(
+                        model_init_dict, c1, c2, i1, i2, proj=proj, pooling=pooling
+                    )
                 )
 
                 c1_embed_tensor = torch.stack(

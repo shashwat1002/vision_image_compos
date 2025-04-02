@@ -53,6 +53,7 @@ class ProbeModelWordLabelLightning(LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+        x = x.squeeze()
         y_hat = self.model(x)
         loss = self.loss(y_hat, y)
         self.log("train_loss", loss)
@@ -63,9 +64,11 @@ class ProbeModelWordLabelLightning(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
+        x = x.squeeze()
         y_hat = self.model(x)
 
         # get top pred
+        print(x.shape, y.shape, y_hat.shape)
         loss = self.loss(y_hat, y)
         y_hat = torch.argmax(y_hat, dim=-1)
         self.log("val_loss", loss)
@@ -99,16 +102,29 @@ class ProbeModelWordLabelLightning(LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, y = batch
+        x = x.squeeze()
         y_hat = self.model(x)
 
         # get top pred
-        y_hat = torch.argmax(y_hat, dim=-1)
         loss = self.loss(y_hat, y)
+        y_hat = torch.argmax(y_hat, dim=-1)
         self.log("test_loss", loss)
 
         # get metrics
-        precision_score = precision(y_hat, y)
-        recall_score = recall(y_hat, y)
+        precision_score = precision(
+            preds=y_hat,
+            target=y,
+            task="multiclass",
+            num_classes=self.output_dim,
+            ignore_index=IGNORE_INDEX_IN_LOSS,
+        )
+        recall_score = recall(
+            preds=y_hat,
+            target=y,
+            task="multiclass",
+            num_classes=self.output_dim,
+            ignore_index=IGNORE_INDEX_IN_LOSS,
+        )
         self.log("test_precision", precision_score)
         self.log("test_recall", recall_score)
         return {
@@ -117,9 +133,9 @@ class ProbeModelWordLabelLightning(LightningModule):
             "test_recall": recall_score,
         }
 
-    def on_test_epoch_end(self, outputs):
-        avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
-        return {"test_loss": avg_loss}
+    # def on_test_epoch_end(self, outputs):
+    #     avg_loss = torch.stack([x["test_loss"] for x in outputs]).mean()
+    #     return {"test_loss": avg_loss}
 
 
 class ProbeWordPairLabel(Module):

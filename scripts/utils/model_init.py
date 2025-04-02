@@ -57,7 +57,7 @@ def init_diffusion_prior_model(path: str, device: str = "cpu"):
     )
     clip_model = OpenAIClipAdapter("ViT-L/14")
     diffusion_prior = (
-        DiffusionPriorCustom(
+        DiffusionPrior(
             net=prior_network,
             clip=clip_model,
             image_embed_dim=768,
@@ -65,10 +65,14 @@ def init_diffusion_prior_model(path: str, device: str = "cpu"):
             cond_drop_prob=0.0,
             loss_type="l2",
             condition_on_text_encodings=True,
+            predict_x_start=True,
+            training_clamp_l2norm=False,
         )
         .to(device=device)
         .eval()
     )
+
+    diffusion_prior.can_classifier_guidance = True
 
     trainer = DiffusionPriorTrainer(
         diffusion_prior=diffusion_prior,
@@ -150,6 +154,7 @@ def init_subject_model(
             "config": model_config,
             "processor": CLIPProcessor.from_pretrained(model_name, device=device),
             "config_image": image_config,
+            "model_image": model.vision_model,
         }
     elif model_type == "blip":
         if model_config is None:
@@ -181,3 +186,38 @@ def init_subject_model(
         }
     else:
         raise ValueError("Model type not recognized")
+
+try:
+    from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
+except ModuleNotFoundError:
+    print("wrong conda env lol")
+
+def init_model_sd_vae(
+    model_id="stabilityai/stable-diffusion-2",
+    cache_dir="/scratch/shashwat.s/.cache/huggingface",
+):
+    # model_id = "stabilityai/stable-diffusion-2"
+
+    # Use the Euler scheduler here instead
+    scheduler = EulerDiscreteScheduler.from_pretrained(
+        model_id,
+        subfolder="scheduler",
+        cache_dir=cache_dir,
+    )
+    pipe = StableDiffusionPipeline.from_pretrained(
+        model_id,
+        scheduler=scheduler,
+        torch_dtype=torch.float16,
+        cache_dir=cache_dir,
+    )
+    pipe = pipe.to("cuda")
+
+    # prompt = "a photo of an astronaut riding a horse on mars"
+    # image = pipe(prompt).images[0]
+    vae = pipe.vae
+    vae.eval()
+
+    return vae, pipe.feature_extractor, pipe
+
+
+# image.save("astronaut_rides_horse.png")

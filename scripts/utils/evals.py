@@ -39,5 +39,5 @@ def loss_eval(
     # print(caption, image_embed.shape)
 
     return diffusion_prior_trainer(
-        text=caption, image_embed=image_embed.clone(), cond_scale=cond_scale
+        text=caption, image_embed=image_embed.clone(), 
     )

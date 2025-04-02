@@ -150,3 +150,13 @@ def sample_prior_embeddings(
     )
 
     return image_embeds
+
+
+def get_latent_distribution(pipe, image):
+    image = pipe.feature_extractor(images=image, return_tensors="pt").pixel_values
+    image = image.to("cuda", dtype=torch.float16)
+
+    # with torch.no_grad():
+    latents = pipe.encode_image(image)
+    return latents
+
